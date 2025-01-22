@@ -1,7 +1,10 @@
+require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
 const app = express();
 const cors = require("cors");
+
+const Person = require("./models/person");
 
 app.use(cors());
 
@@ -32,14 +35,16 @@ let persons = [
   },
 ];
 
-morgan.token("body", function (requset, response) {
-  return requset.method === "POST" ? JSON.stringify(requset.body) : "";
+morgan.token("body", function (request, response) {
+  return request.method === "POST" ? JSON.stringify(request.body) : "";
 });
 
 app.use(morgan(":method :url :res[content-length] - :response-time ms :body"));
 
 app.get("/api/persons", (request, response) => {
-  response.json(persons);
+  Person.find({}).then((people) => {
+    response.json(people);
+  });
 });
 
 app.get("/info", (request, response) => {
@@ -51,13 +56,9 @@ app.get("/info", (request, response) => {
 });
 
 app.get("/api/persons/:id", (request, response) => {
-  const id = request.params.id;
-  const person = persons.find((person) => person.id === id);
-  if (person) {
+  Person.findById(request.params.id).then((person) => {
     response.json(person);
-  } else {
-    response.status(404).send("<p>The person you look for is not in phonebook");
-  }
+  });
 });
 
 app.delete("/api/persons/:id", (request, response) => {
@@ -66,43 +67,34 @@ app.delete("/api/persons/:id", (request, response) => {
   response.status(204).end();
 });
 
-const generateId = () => {
-  const randomId = Math.floor(Math.random() * 100000).toString();
+// const generateId = () => {
+//   const randomId = Math.floor(Math.random() * 100000).toString();
 
-  return persons.some((person) => person.id === randomId)
-    ? generateId()
-    : randomId;
-};
+//   return persons.some((person) => person.id === randomId)
+//     ? generateId()
+//     : randomId;
+// };
 
 app.post("/api/persons", (request, response) => {
   const body = request.body;
 
-  const uniqueName = persons.some((person) => person.name === body.name);
-
-  if (!body.name || !body.number) {
+  if (body.name === undefined || body.number === undefined) {
     return response.status(400).json({
       error: "The name or number is missing",
     });
   }
 
-  if (uniqueName) {
-    return response.status(400).json({
-      error: "The name already exist in phonebook",
-    });
-  }
-
-  const person = {
-    id: generateId(),
+  const person = new Person({
     name: body.name,
     number: body.number,
-  };
+  });
 
-  persons = persons.concat(person);
-
-  response.json(person);
+  person.save().then((savedPerson) => {
+    response.json(savedPerson);
+  });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
