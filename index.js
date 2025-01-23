@@ -1,16 +1,26 @@
-require("dotenv").config();
 const express = require("express");
-const morgan = require("morgan");
 const app = express();
-const cors = require("cors");
+require("dotenv").config();
 
 const Person = require("./models/person");
 
-app.use(cors());
-
-app.use(express.json());
-
 app.use(express.static("dist"));
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  }
+
+  next(error);
+};
+
+const morgan = require("morgan");
+const cors = require("cors");
+
+app.use(cors());
+app.use(express.json());
 
 let persons = [
   {
@@ -61,19 +71,13 @@ app.get("/api/persons/:id", (request, response) => {
   });
 });
 
-app.delete("/api/persons/:id", (request, response) => {
-  const id = request.params.id;
-  persons = persons.filter((person) => person.id !== id);
-  response.status(204).end();
+app.delete("/api/persons/:id", (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id)
+    .then((result) => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
 });
-
-// const generateId = () => {
-//   const randomId = Math.floor(Math.random() * 100000).toString();
-
-//   return persons.some((person) => person.id === randomId)
-//     ? generateId()
-//     : randomId;
-// };
 
 app.post("/api/persons", (request, response) => {
   const body = request.body;
@@ -93,6 +97,8 @@ app.post("/api/persons", (request, response) => {
     response.json(savedPerson);
   });
 });
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
