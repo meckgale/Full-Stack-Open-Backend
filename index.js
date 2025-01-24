@@ -51,24 +51,34 @@ morgan.token("body", function (request, response) {
 
 app.use(morgan(":method :url :res[content-length] - :response-time ms :body"));
 
-app.get("/api/persons", (request, response) => {
-  Person.find({}).then((people) => {
-    response.json(people);
-  });
+app.get("/api/persons", (request, response, next) => {
+  Person.find({})
+    .then((people) => {
+      response.json(people);
+    })
+    .catch((error) => next(error));
 });
 
-app.get("/info", (request, response) => {
-  response.send(
-    `<p>Phonebook has info for ${
-      persons.length
-    } people <br/> ${new Date()} </p>`
-  );
+app.get("/info", (request, response, next) => {
+  Person.countDocuments({})
+    .then((count) => [
+      response.send(
+        `<p>Phonebook has info for ${count} people <br/> ${new Date()}</p>`
+      ),
+    ])
+    .catch((error) => next(error));
 });
 
 app.get("/api/persons/:id", (request, response) => {
-  Person.findById(request.params.id).then((person) => {
-    response.json(person);
-  });
+  Person.findById(request.params.id)
+    .then((person) => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch((error) => next(error));
 });
 
 app.delete("/api/persons/:id", (request, response, next) => {
@@ -79,7 +89,7 @@ app.delete("/api/persons/:id", (request, response, next) => {
     .catch((error) => next(error));
 });
 
-app.post("/api/persons", (request, response) => {
+app.post("/api/persons", (request, response, next) => {
   const body = request.body;
 
   if (body.name === undefined || body.number === undefined) {
@@ -93,9 +103,38 @@ app.post("/api/persons", (request, response) => {
     number: body.number,
   });
 
-  person.save().then((savedPerson) => {
-    response.json(savedPerson);
-  });
+  console.log(`Inside backend, person object from request.body: ${person}`);
+
+  person
+    .save()
+    .then((savedPerson) => {
+      console.log(
+        `Inside backend, after person.save(), savedPerson : ${savedPerson}`
+      );
+      response.json(savedPerson);
+    })
+    .catch((error) => next(error));
+});
+
+app.put("/api/persons/:id", (request, response) => {
+  const body = request.body;
+
+  if (body.name === undefined || body.number === undefined) {
+    return response.status(400).json({
+      error: "The name or number is missing",
+    });
+  }
+
+  const person = {
+    name: body.name,
+    number: body.number,
+  };
+
+  Person.findByIdAndUpdate(request.params.id, person, { new: true })
+    .then((updatedPerson) => {
+      response.json(updatedPerson);
+    })
+    .catch((error) => next(error));
 });
 
 app.use(errorHandler);
